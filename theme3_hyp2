@@ -1,0 +1,175 @@
+import java.util.*;
+public class Main {
+    public static void main(String[] args) {
+        System.out.println("    PLANIFICATION DES COLLECTES DE DÉCHETS            ");
+        System.out.println("    Thème 3 - Hypothèse 1 : Coloration de Graphe     ");
+
+        // Création des secteurs
+        Secteur secteurA = new Secteur("Secteur A");
+        Secteur secteurB = new Secteur("Secteur B");
+        Secteur secteurC = new Secteur("Secteur C");
+        Secteur secteurD = new Secteur("Secteur D");
+        Secteur secteurE = new Secteur("Secteur E");
+        Secteur secteurF = new Secteur("Secteur F");
+
+        // Définition des voisinages (arêtes du graphe)
+        secteurA.ajouterVoisin(secteurB);
+        secteurA.ajouterVoisin(secteurC);
+        secteurB.ajouterVoisin(secteurD);
+        secteurB.ajouterVoisin(secteurF);
+        secteurC.ajouterVoisin(secteurF);
+        secteurD.ajouterVoisin(secteurE);
+        secteurE.ajouterVoisin(secteurF);
+
+        // Liste des secteurs
+        List<Secteur> secteurs = Arrays.asList(
+                secteurA, secteurB, secteurC, secteurD, secteurE, secteurF
+        );
+
+        // Affichage du graphe
+        System.out.println("\nSTRUCTURE DU GRAPHE :");
+        System.out.println("─".repeat(56));
+        for (Secteur s : secteurs) {
+            List<String> nomsVoisins = new ArrayList<>();
+            for (Secteur v : s.getVoisins()) {
+                nomsVoisins.add(v.getNom());
+            }
+            Collections.sort(nomsVoisins);
+            System.out.printf("%-12s (degré %d) → Voisins : %s\n",
+                    s.getNom(),
+                    s.getDegre(),
+                    String.join(", ", nomsVoisins));
+        }
+
+        // Création du planificateur et exécution de l'algorithme
+        Planificateur planificateur = new Planificateur(secteurs);
+        planificateur.colorationHypothese1();
+
+        // Affichage du résultat
+        planificateur.afficherResultat();
+
+        System.out.println("═".repeat(56));
+        System.out.println("Programme terminé avec succès !");
+        System.out.println("═".repeat(56));
+    }
+}
+import java.util.*;
+public class Main {
+    public static void main(String[] args) {
+        System.out.println("    PLANIFICATION DES COLLECTES DE DÉCHETS            ");
+        System.out.println("    Thème 3 - Hypothèse 1 : Coloration de Graphe     ");
+
+        // Création des secteurs
+        Secteur secteurA = new Secteur("Secteur A");
+        Secteur secteurB = new Secteur("Secteur B");
+        Secteur secteurC = new Secteur("Secteur C");
+        Secteur secteurD = new Secteur("Secteur D");
+        Secteur secteurE = new Secteur("Secteur E");
+        Secteur secteurF = new Secteur("Secteur F");
+
+        // Définition des voisinages (arêtes du graphe)
+        secteurA.ajouterVoisin(secteurB);
+        secteurA.ajouterVoisin(secteurC);
+        secteurB.ajouterVoisin(secteurD);
+        secteurB.ajouterVoisin(secteurF);
+        secteurC.ajouterVoisin(secteurF);
+        secteurD.ajouterVoisin(secteurE);
+        secteurE.ajouterVoisin(secteurF);
+
+        // Liste des secteurs
+        List<Secteur> secteurs = Arrays.asList(
+                secteurA, secteurB, secteurC, secteurD, secteurE, secteurF
+        );
+
+        // Affichage du graphe
+        System.out.println("\nSTRUCTURE DU GRAPHE :");
+        System.out.println("─".repeat(56));
+        for (Secteur s : secteurs) {
+            List<String> nomsVoisins = new ArrayList<>();
+            for (Secteur v : s.getVoisins()) {
+                nomsVoisins.add(v.getNom());
+            }
+            Collections.sort(nomsVoisins);
+            System.out.printf("%-12s (degré %d) → Voisins : %s\n",
+                    s.getNom(),
+                    s.getDegre(),
+                    String.join(", ", nomsVoisins));
+        }
+
+        // Création du planificateur et exécution de l'algorithme
+        Planificateur planificateur = new Planificateur(secteurs);
+        planificateur.colorationHypothese1();
+
+        // Affichage du résultat
+        planificateur.afficherResultat();
+
+        System.out.println("═".repeat(56));
+        System.out.println("Programme terminé avec succès !");
+        System.out.println("═".repeat(56));
+    }
+}
+import java.util.*;
+public class Main {
+    public static void main(String[] args) {
+        System.out.println("LA ");
+        System.out.println("     PLANIFICATION DES COLLECTES DE DÉCHETS            ");
+        System.out.println("    Thème 3 - Hypothèse 2 : Capacité + Coloration    ");
+
+
+        // Création des secteurs avec leurs quantités de déchets
+        Secteur secteurA = new Secteur("Secteur A", 15.0);
+        Secteur secteurB = new Secteur("Secteur B", 18.0);
+        Secteur secteurC = new Secteur("Secteur C", 12.0);
+        Secteur secteurD = new Secteur("Secteur D", 22.0);
+        Secteur secteurE = new Secteur("Secteur E", 14.0);
+        Secteur secteurF = new Secteur("Secteur F", 8.0);
+
+        // Définition des voisinages
+        // Graphe :
+        //     A --- B --- D
+        //     |     |     |
+        //     C --- F --- E
+        secteurA.ajouterVoisin(secteurB);
+        secteurA.ajouterVoisin(secteurC);
+        secteurB.ajouterVoisin(secteurD);
+        secteurB.ajouterVoisin(secteurF);
+        secteurC.ajouterVoisin(secteurF);
+        secteurD.ajouterVoisin(secteurE);
+        secteurE.ajouterVoisin(secteurF);
+
+        List<Secteur> secteurs = Arrays.asList(
+                secteurA, secteurB, secteurC, secteurD, secteurE, secteurF
+        );
+
+        // Affichage du graphe
+        System.out.println("\nSTRUCTURE DU GRAPHE :");
+        System.out.println("─".repeat(56));
+        for (Secteur s : secteurs) {
+            List<String> nomsVoisins = new ArrayList<>();
+            for (Secteur v : s.getVoisins()) {
+                nomsVoisins.add(v.getNom());
+            }
+            Collections.sort(nomsVoisins);
+            System.out.printf("%-12s : %.1ft (degré %d) → %s\n",
+                    s.getNom(),
+                    s.getQuantite(),
+                    s.getDegre(),
+                    String.join(", ", nomsVoisins));
+        }
+
+        // Configuration des ressources
+        int nombreCamions = 2;
+        double capaciteCamion = 25.0; // en tonnes
+
+        // Création du planificateur et exécution
+        Planificateur planificateur = new Planificateur(secteurs, nombreCamions, capaciteCamion);
+        planificateur.equilibrerHypothese2();
+
+        // Affichage du résultat final
+        planificateur.afficherResultat();
+
+        System.out.println("═".repeat(56));
+        System.out.println("Programme terminé avec succès !");
+        System.out.println("═".repeat(56));
+    }
+}
