@@ -126,9 +126,6 @@ public class Main {
 
         // Définition des voisinages
         // Graphe :
-        //     A --- B --- D
-        //     |     |     |
-        //     C --- F --- E
         secteurA.ajouterVoisin(secteurB);
         secteurA.ajouterVoisin(secteurC);
         secteurB.ajouterVoisin(secteurD);
