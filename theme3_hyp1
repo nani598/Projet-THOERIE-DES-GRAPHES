@@ -1,0 +1,230 @@
+import java.util.*;
+public class Secteur {
+    private String nom;
+    private Set<Secteur> voisins;
+    private int jour; // Jour de collecte assigné (0 = non assigné)
+
+    public Secteur(String nom) {
+        this.nom = nom;
+        this.voisins = new HashSet<>();
+        this.jour = 0;
+    }
+
+    /**
+     * Ajoute une relation de voisinage bidirectionnelle
+     */
+    public void ajouterVoisin(Secteur voisin) {
+        this.voisins.add(voisin);
+        voisin.voisins.add(this);
+    }
+
+    public String getNom() {
+        return nom;
+    }
+
+    public Set<Secteur> getVoisins() {
+        return voisins;
+    }
+
+    public int getJour() {
+        return jour;
+    }
+
+    public void setJour(int jour) {
+        this.jour = jour;
+    }
+
+    /**
+     * Calcule le degré du secteur (nombre de voisins)
+     */
+    public int getDegre() {
+        return voisins.size();
+    }
+
+    /**
+     * Retourne l'ensemble des jours déjà utilisés par les voisins
+     */
+    public Set<Integer> getJoursVoisins() {
+        Set<Integer> joursVoisins = new HashSet<>();
+        for (Secteur voisin : voisins) {
+            if (voisin.getJour() > 0) {
+                joursVoisins.add(voisin.getJour());
+            }
+        }
+        return joursVoisins;
+    }
+
+    @Override
+    public String toString() {
+        return nom + " (jour " + jour + ")";
+    }
+}import java.util.*;
+public class Planificateur {
+    private List<Secteur> secteurs;
+
+    public Planificateur(List<Secteur> secteurs) {
+        this.secteurs = secteurs;
+    }
+
+    /**
+     * Algorithme de coloration Welsh-Powell
+     * Principe :
+     * 1. Trier les secteurs par degré décroissant
+     * 2. Pour chaque secteur, attribuer le plus petit jour non utilisé par ses voisins
+     */
+    public void colorationHypothese1() {
+
+        System.out.println("COLORATION DE GRAPHE - Algorithme Welsh-Powell \n");;
+
+        // Étape 1 : Réinitialiser tous les jours à 0
+        for (Secteur secteur : secteurs) {
+            secteur.setJour(0);
+        }
+
+        // Étape 2 : Trier les secteurs par degré décroissant
+        List<Secteur> secteursTries = new ArrayList<>(secteurs);
+        secteursTries.sort((s1, s2) -> Integer.compare(s2.getDegre(), s1.getDegre()));
+
+        System.out.println("Ordre de traitement (par degré décroissant) :");
+        for (Secteur s : secteursTries) {
+            System.out.printf("  - %s : degré %d\n", s.getNom(), s.getDegre());
+        }
+        System.out.println();
+
+        // Étape 3 : Attribuer les jours (couleurs)
+        for (Secteur secteur : secteursTries) {
+            // Récupérer les jours déjà utilisés par les voisins
+            Set<Integer> joursVoisins = secteur.getJoursVoisins();
+
+            // Trouver le plus petit jour disponible (non utilisé par les voisins)
+            int jourDisponible = 1;
+            while (joursVoisins.contains(jourDisponible)) {
+                jourDisponible++;
+            }
+
+            // Assigner ce jour au secteur
+            secteur.setJour(jourDisponible);
+
+            System.out.printf("  %s → Jour %d (voisins utilisent : %s)\n",
+                    secteur.getNom(),
+                    jourDisponible,
+                    joursVoisins.isEmpty() ? "aucun" : joursVoisins.toString());
+        }
+    }
+
+    /**
+     * Affiche le résultat de la planification
+     */
+    public void afficherResultat() {
+        System.out.println("\n" + "─".repeat(52));
+        System.out.println("RÉSULTAT DE LA PLANIFICATION");
+        System.out.println("─".repeat(52) + "\n");
+
+        // Regrouper les secteurs par jour
+        Map<Integer, List<Secteur>> secteursParJour = new TreeMap<>();
+        for (Secteur secteur : secteurs) {
+            int jour = secteur.getJour();
+            secteursParJour.computeIfAbsent(jour, k -> new ArrayList<>()).add(secteur);
+        }
+
+        // Afficher les secteurs pour chaque jour
+        for (Map.Entry<Integer, List<Secteur>> entry : secteursParJour.entrySet()) {
+            int jour = entry.getKey();
+            List<Secteur> secteursJour = entry.getValue();
+
+            System.out.printf("Jour %d :\n", jour);
+            for (Secteur secteur : secteursJour) {
+                System.out.printf("   • %s\n", secteur.getNom());
+            }
+            System.out.println();
+        }
+
+        // Statistiques
+        int nombreJours = secteursParJour.size();
+        System.out.println("─".repeat(52));
+        System.out.printf("✓ Nombre total de jours nécessaires : %d\n", nombreJours);
+        System.out.printf("✓ Nombre de secteurs planifiés : %d\n", secteurs.size());
+        System.out.println("─".repeat(52));
+
+        // Vérification de la validité
+        verifierColoration();
+    }
+
+    /**
+     * Vérifie que la coloration est valide (aucun voisin n'a le même jour)
+     */
+    private void verifierColoration() {
+        System.out.println("\nVÉRIFICATION DE LA COLORATION :");
+        boolean valide = true;
+
+        for (Secteur secteur : secteurs) {
+            for (Secteur voisin : secteur.getVoisins()) {
+                if (secteur.getJour() == voisin.getJour()) {
+                    System.out.printf("   ERREUR : %s et %s sont voisins et ont le même jour (%d)\n",
+                            secteur.getNom(), voisin.getNom(), secteur.getJour());
+                    valide = false;
+                }
+            }
+        }
+
+        if (valide) {
+            System.out.println("   La coloration est VALIDE : aucun secteur voisin n'a le même jour");
+        }
+        System.out.println();
+    }
+}
+import java.util.*;
+public class Main {
+    public static void main(String[] args) {
+        System.out.println("    PLANIFICATION DES COLLECTES DE DÉCHETS            ");
+        System.out.println("    Thème 3 - Hypothèse 1 : Coloration de Graphe     ");
+
+        // Création des secteurs
+        Secteur secteurA = new Secteur("Secteur A");
+        Secteur secteurB = new Secteur("Secteur B");
+        Secteur secteurC = new Secteur("Secteur C");
+        Secteur secteurD = new Secteur("Secteur D");
+        Secteur secteurE = new Secteur("Secteur E");
+        Secteur secteurF = new Secteur("Secteur F");
+
+        // Définition des voisinages (arêtes du graphe)
+        secteurA.ajouterVoisin(secteurB);
+        secteurA.ajouterVoisin(secteurC);
+        secteurB.ajouterVoisin(secteurD);
+        secteurB.ajouterVoisin(secteurF);
+        secteurC.ajouterVoisin(secteurF);
+        secteurD.ajouterVoisin(secteurE);
+        secteurE.ajouterVoisin(secteurF);
+
+        // Liste des secteurs
+        List<Secteur> secteurs = Arrays.asList(
+                secteurA, secteurB, secteurC, secteurD, secteurE, secteurF
+        );
+
+        // Affichage du graphe
+        System.out.println("\nSTRUCTURE DU GRAPHE :");
+        System.out.println("─".repeat(56));
+        for (Secteur s : secteurs) {
+            List<String> nomsVoisins = new ArrayList<>();
+            for (Secteur v : s.getVoisins()) {
+                nomsVoisins.add(v.getNom());
+            }
+            Collections.sort(nomsVoisins);
+            System.out.printf("%-12s (degré %d) → Voisins : %s\n",
+                    s.getNom(),
+                    s.getDegre(),
+                    String.join(", ", nomsVoisins));
+        }
+
+        // Création du planificateur et exécution de l'algorithme
+        Planificateur planificateur = new Planificateur(secteurs);
+        planificateur.colorationHypothese1();
+
+        // Affichage du résultat
+        planificateur.afficherResultat();
+
+        System.out.println("═".repeat(56));
+        System.out.println("Programme terminé avec succès !");
+        System.out.println("═".repeat(56));
+    }
+}
