@@ -1,0 +1,1417 @@
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+public class SecteurNonOriente {
+    int id;
+    String nom;
+    int quantite;
+    List<Integer> noeuds;
+    Set<SecteurNonOriente> voisins;
+    int couleur;
+
+    public SecteurNonOriente (int id, String nom, int quantite, int... noeuds) {
+        this.id = id;
+        this.nom = nom;
+        this.quantite = quantite;
+        this.noeuds = new ArrayList<>();
+        for (int n : noeuds) {
+            this.noeuds.add(n);
+        }
+        this.voisins = new HashSet<>();
+        this.couleur = -1;
+    }
+
+    public void ajouterVoisin(SecteurNonOriente s) {
+        if (s != this) {
+            this.voisins.add(s);
+        }
+    }
+
+    public int getDegre() {
+        return voisins.size();
+    }
+
+    public boolean contientNoeud(int noeud) {
+        return noeuds.contains(noeud);
+    }
+
+    public Set<Integer> getCouleursVoisins() {
+        Set<Integer> couleurs = new HashSet<>();
+        for (SecteurNonOriente v : voisins) {
+            if (v.couleur != -1) {
+                couleurs.add(v.couleur);
+            }
+        }
+        return couleurs;
+    }
+
+    @Override
+    public String toString() {
+        return "S" + id + " - " + nom + " (q=" + quantite + "t, noeuds=" + noeuds + ")";
+    }
+}import java.util.*;
+
+public class PlanificateurNonOriente {
+    List<SecteurNonOriente> secteurs;
+    int[][] aretes;
+    int nbCamions;
+    int capaciteCamion;
+    int capaciteJournaliere;
+
+
+    public PlanificateurNonOriente(List<SecteurNonOriente> secteurs, int nbCamions, int capaciteCamion) {
+        this.secteurs = secteurs;
+        this.nbCamions = nbCamions;
+        this.capaciteCamion = capaciteCamion;
+        this.capaciteJournaliere = nbCamions * capaciteCamion;
+
+        // Les 36 arêtes du graphe HO1
+        this.aretes = new int[][] {
+                {1,2}, {1,3}, {1,4}, {2,5}, {2,10}, {3,11}, {11,12},
+                {12,13}, {13,14}, {4,14}, {4,6}, {5,6}, {5,7},
+                {7,16}, {7,8}, {8,17}, {8,9}, {9,18}, {6,9},
+                {16,17}, {17,18}, {16,19}, {19,20}, {18,20},
+                {9,15}, {14,22}, {14,15}, {15,23}, {15,26},
+                {23,25}, {26,25}, {20,21}, {21,27}, {21,28},
+                {26,21}, {25,28}
+        };
+    }
+    public void afficherGraphe() {
+        System.out.println("\n          STRUCTURE DU GRAPHE NON ORIENTÉ       \n");
+
+        for (SecteurNonOriente s : secteurs) {
+            System.out.println("Secteur " + s.id + " (" + s.nom + ")");
+            System.out.println("  Quantité : " + s.quantite + "t");
+            System.out.println("  Sommets  : " + s.noeuds);
+            System.out.println("  Degré    : " + s.getDegre());
+
+            if (s.voisins.isEmpty()) {
+                System.out.println("  Voisins  : aucun");
+            } else {
+                List<Integer> voisinsIds = new ArrayList<>();
+                for (SecteurNonOriente v : s.voisins) {
+                    voisinsIds.add(v.id);
+                }
+                Collections.sort(voisinsIds);
+                System.out.println("  Voisins  : " + voisinsIds);
+            }
+
+            System.out.println();
+        }
+    }
+
+
+    public void construireVoisinages() {
+        System.out.println("\n     CONSTRUCTION AUTOMATIQUE DES VOISINAGES\n");
+
+        Set<String> voisinagesAjoutes = new HashSet<>();
+        int nbVoisinages = 0;
+
+        for (int i = 0; i < aretes.length; i++) {
+            int u = aretes[i][0];
+            int v = aretes[i][1];
+
+            SecteurNonOriente Su = trouverSecteurContenant(u);
+            SecteurNonOriente Sv = trouverSecteurContenant(v);
+
+            if (Su != null && Sv != null && Su != Sv) {
+                String cle = Math.min(Su.id, Sv.id) + "-" + Math.max(Su.id, Sv.id);
+
+                if (!voisinagesAjoutes.contains(cle)) {
+                    Su.ajouterVoisin(Sv);
+                    Sv.ajouterVoisin(Su);
+                    voisinagesAjoutes.add(cle);
+                    System.out.println("A" + (i+1) + " (" + u + "-" + v + ") → S" + Su.id + " <-> S" + Sv.id);
+                    nbVoisinages++;
+                }
+            }
+        }
+
+        System.out.println(nbVoisinages + " voisinages créés automatiquement");
+        System.out.println("\n    Graphe des secteurs  ");
+        for (SecteurNonOriente s : secteurs) {
+            System.out.print("S" + s.id + " (" + s.nom + ") → voisins: ");
+            List<Integer> voisinsIds = new ArrayList<>();
+            for (SecteurNonOriente v : s.voisins) {
+                voisinsIds.add(v.id);
+            }
+            Collections.sort(voisinsIds);
+            System.out.print(voisinsIds);
+            System.out.println(" [degré=" + s.getDegre() + "]");
+        }
+    }
+
+    private SecteurNonOriente trouverSecteurContenant(int noeud) {
+        for (SecteurNonOriente s : secteurs) {
+            if (s.contientNoeud(noeud)) {
+                return s;
+            }
+        }
+        return null;
+    }
+
+    public void colorationWelshPowell() {
+        System.out.println(" \n    COLORATION WELSH-POWELL\n");
+
+
+        List<SecteurNonOriente> secteursTries = new ArrayList<>(secteurs);
+        secteursTries.sort((s1, s2) -> Integer.compare(s2.getDegre(), s1.getDegre()));
+
+        System.out.println("\nOrdre de traitement (tri par degré décroissant) :");
+        for (int i = 0; i < secteursTries.size(); i++) {
+            SecteurNonOriente s = secteursTries.get(i);
+            System.out.println((i+1) + ". S" + s.id + " - " + s.nom + " [degré=" + s.getDegre() + "]");
+        }
+
+        System.out.println("\n─── Attribution des jours ───");
+        int couleurMax = 0;
+        for (SecteurNonOriente s : secteursTries) {
+            Set<Integer> couleursInterdites = s.getCouleursVoisins();
+
+            int couleurMin = 0;
+            while (couleursInterdites.contains(couleurMin)) {
+                couleurMin++;
+            }
+
+            s.couleur = couleurMin;
+            System.out.println("S" + s.id + " → Jour " + couleurMin + " (couleurs interdites: " + couleursInterdites + ")");
+
+            if (couleurMin > couleurMax) {
+                couleurMax = couleurMin;
+            }
+        }
+
+        System.out.println("\n Coloration initiale : " + (couleurMax + 1) + " jours nécessaires");
+    }
+
+    public void reequilibrage() {
+        System.out.println(" \n    RÉÉQUILIBRAGE DES CHARGES\n");
+        System.out.println("Capacité journalière : " + nbCamions + " camions × " + capaciteCamion + "t = " + capaciteJournaliere + "t");
+
+        boolean modifie = true;
+        int iteration = 0;
+
+        while (modifie) {
+            modifie = false;
+            iteration++;
+            System.out.println("\n     Itération " + iteration );
+
+            Map<Integer, List<SecteurNonOriente>> joursSecteurs = new HashMap<>();
+            for (SecteurNonOriente s : secteurs) {
+                joursSecteurs.computeIfAbsent(s.couleur, k -> new ArrayList<>()).add(s);
+            }
+
+            List<Integer> jours = new ArrayList<>(joursSecteurs.keySet());
+            Collections.sort(jours);
+
+            System.out.println("\nÉtat actuel des charges :");
+            for (int jour : jours) {
+                int charge = calculerCharge(jour);
+                String statut = charge > capaciteJournaliere ? "  SURCHARGE" : " ✓";
+                System.out.println("  Jour " + jour + " : " + charge + "t / " + capaciteJournaliere + "t" + statut);
+            }
+
+            for (int jour : jours) {
+                int charge = calculerCharge(jour);
+
+                if (charge > capaciteJournaliere) {
+                    System.out.println("\n Traitement surcharge du Jour " + jour + " (" + charge + "t)");
+
+                    List<SecteurNonOriente> secteursJour = new ArrayList<>(joursSecteurs.get(jour));
+                    secteursJour.sort((s1, s2) -> Integer.compare(s2.quantite, s1.quantite));
+
+                    for (SecteurNonOriente s : secteursJour) {
+                        if (calculerCharge(jour) <= capaciteJournaliere) {
+                            break;
+                        }
+
+                        int jourOptimal = trouverJourOptimal(s);
+                        if (jourOptimal != -1 && jourOptimal != s.couleur) {
+                            System.out.println("  → Déplacement S" + s.id + " (" + s.quantite + "t) : Jour " + s.couleur + " → Jour " + jourOptimal);
+                            s.couleur = jourOptimal;
+                            modifie = true;
+                        }
+                    }
+                }
+            }
+
+            if (!modifie) {
+                System.out.println("\n Équilibre atteint : aucune modification nécessaire");
+            }
+        }
+    }
+
+    private int calculerCharge(int jour) {
+        int charge = 0;
+        for (SecteurNonOriente s : secteurs) {
+            if (s.couleur == jour) {
+                charge += s.quantite;
+            }
+        }
+        return charge;
+    }
+
+    private int trouverJourOptimal(SecteurNonOriente secteur) {
+        Set<Integer> joursInterdits = secteur.getCouleursVoisins();
+
+        Map<Integer, Integer> chargesJours = new HashMap<>();
+        for (SecteurNonOriente s : secteurs) {
+            if (s != secteur) {
+                chargesJours.put(s.couleur, chargesJours.getOrDefault(s.couleur, 0) + s.quantite);
+            }
+        }
+
+        int jourOptimal = -1;
+        int chargeMin = Integer.MAX_VALUE;
+
+        int maxJour = secteurs.stream().mapToInt(s -> s.couleur).max().orElse(0) + 1;
+
+        for (int j = 0; j <= maxJour; j++) {
+            if (!joursInterdits.contains(j)) {
+                int charge = chargesJours.getOrDefault(j, 0);
+                if (charge + secteur.quantite <= capaciteJournaliere && charge < chargeMin) {
+                    chargeMin = charge;
+                    jourOptimal = j;
+                }
+            }
+        }
+
+        return jourOptimal;
+    }
+
+    public void afficherPlanning() {
+        System.out.println("\n     PLANNING FINAL DE COLLECTE\n");
+
+        Map<Integer, List<SecteurNonOriente>> planning = new HashMap<>();
+        for (SecteurNonOriente s : secteurs) {
+            planning.computeIfAbsent(s.couleur, k -> new ArrayList<>()).add(s);
+        }
+
+        List<Integer> jours = new ArrayList<>(planning.keySet());
+        Collections.sort(jours);
+
+        for (int jour : jours) {
+            List<SecteurNonOriente> secteursJour = planning.get(jour);
+            int charge = calculerCharge(jour);
+            double tauxRemplissage = (charge * 100.0) / capaciteJournaliere;
+
+            System.out.println("\n JOUR " + jour + " : " + charge + "t / " + capaciteJournaliere + "t  (" + String.format("%.1f", tauxRemplissage) + "%)\n");
+
+
+            for (SecteurNonOriente s : secteursJour) {
+                System.out.println("  • S" + s.id + " - " + s.nom);
+                System.out.println("    Charge : " + s.quantite + "t | Sommets : " + s.noeuds);
+            }
+        }
+
+        System.out.println("\n Nombre total de jours : " + jours.size() );
+
+    }
+
+    public void verifier() {
+        System.out.println("\n     VÉRIFICATION COMPLÈTE DU PLANNING\n");
+
+        boolean valide = true;
+
+        // 1. Vérification des conflits de voisinage
+        System.out.println("\n1️  Vérification des contraintes de voisinage");
+        int nbConflits = 0;
+        for (SecteurNonOriente s : secteurs) {
+            for (SecteurNonOriente v : s.voisins) {
+                if (s.id < v.id && s.couleur == v.couleur) {
+                    System.out.println("   CONFLIT : S" + s.id + " et S" + v.id + " sont voisins et au même jour " + s.couleur);
+                    nbConflits++;
+                    valide = false;
+                }
+            }
+        }
+        if (nbConflits == 0) {
+            System.out.println("  Aucun conflit : tous les secteurs voisins sont à des jours différents");
+        } else {
+            System.out.println("  Total : " + nbConflits + " conflit(s) détecté(s)");
+        }
+
+        // 2. Vérification des surcharges
+        System.out.println("\n Vérification des capacités journalières");
+        Map<Integer, Integer> chargesJours = new HashMap<>();
+        for (SecteurNonOriente s : secteurs) {
+            chargesJours.put(s.couleur, chargesJours.getOrDefault(s.couleur, 0) + s.quantite);
+        }
+
+        boolean surcharge = false;
+        List<Integer> jours = new ArrayList<>(chargesJours.keySet());
+        Collections.sort(jours);
+
+        for (int jour : jours) {
+            int charge = chargesJours.get(jour);
+            if (charge > capaciteJournaliere) {
+                System.out.println("   SURCHARGE : Jour " + jour + " = " + charge + "t (dépasse " + capaciteJournaliere + "t de " + (charge - capaciteJournaliere) + "t)");
+                surcharge = true;
+            } else {
+                System.out.println("   Jour " + jour + " : " + charge + "t / " + capaciteJournaliere + "t");
+            }
+        }
+        if (!surcharge) {
+            System.out.println("   Toutes les capacités sont respectées");
+        }
+
+        // 3. Statistiques
+        System.out.println("\n  Statistiques du planning");
+        int nbJours = chargesJours.size();
+        int chargeTotal = secteurs.stream().mapToInt(s -> s.quantite).sum();
+        double moyenneCharge = chargeTotal / (double) nbJours;
+
+        System.out.println("  • Nombre de jours : " + nbJours);
+        System.out.println("  • Charge totale : " + chargeTotal + "t");
+        System.out.println("  • Charge moyenne par jour : " + String.format("%.1f", moyenneCharge) + "t");
+        System.out.println("  • Capacité par jour : " + capaciteJournaliere + "t");
+
+        // 4. Résultat final
+
+        if (valide && !surcharge) {
+            System.out.println("  \n         PLANNING VALIDE ET OPTIMISÉ");
+        } else {
+            System.out.println(" \n          PLANNING INVALIDE");
+        }
+
+    }
+}
+
+
+import java.util.*;
+public class ScenarioNonOriente {
+    public static void executer() {
+
+        List<SecteurNonOriente> secteurs = Arrays.asList(
+                new SecteurNonOriente(1, "Zone nord", 24, 1, 2, 3, 4, 11, 12, 13, 14),
+                new SecteurNonOriente(2, "Zone ouest", 18, 5, 6, 7, 8, 9),
+                new SecteurNonOriente(3, "Zone sud-ouest", 16, 15, 23, 25, 26),
+                new SecteurNonOriente(4, "Zone sud", 20, 16, 17, 18, 20, 21),
+                new SecteurNonOriente(5, "Zone sud-est", 14, 19, 22, 27, 28),
+                new SecteurNonOriente(6, "Zone est", 10, 10)
+        );
+
+        PlanificateurNonOriente p = new PlanificateurNonOriente(secteurs, 2, 25);
+
+        p.construireVoisinages();
+        p.afficherGraphe();
+        p.colorationWelshPowell();
+        p.reequilibrage();
+        p.afficherPlanning();
+        p.verifier();
+    }
+}
+
+import java.util.*;
+public class SecteurOriente {
+    int id;
+    int quantite;
+    List<Integer> sommets;
+    Set<SecteurOriente> voisins;
+    int jour;
+
+    public SecteurOriente(int id, int quantite, int... sommets) {
+        this.id = id;
+        this.quantite = quantite;
+        this.sommets = new ArrayList<>();
+        for (int s : sommets) {
+            this.sommets.add(s);
+        }
+        this.voisins = new HashSet<>();
+        this.jour = -1;
+    }
+
+    public void ajouterVoisin(SecteurOriente s) {
+        if (s != this) {
+            this.voisins.add(s);
+        }
+    }
+
+    public int getDegre() {
+        return voisins.size();
+    }
+
+    public boolean contientSommet(int sommet) {
+        return sommets.contains(sommet);
+    }
+
+    public Set<Integer> getJoursVoisins() {
+        Set<Integer> jours = new HashSet<>();
+        for (SecteurOriente v : voisins) {
+            if (v.jour != -1) {
+                jours.add(v.jour);
+            }
+        }
+        return jours;
+    }
+}
+
+import java.util.*;
+
+public class PlanificateurOriente {
+    List<SecteurOriente> secteurs;
+    int[][] aretes;
+    int nbCamions;
+    int capaciteCamion;
+    int capaciteJournaliere;
+
+    public PlanificateurOriente(List<SecteurOriente> secteurs, int nbCamions, int capaciteCamion) {
+        this.secteurs = secteurs;
+        this.nbCamions = nbCamions;
+        this.capaciteCamion = capaciteCamion;
+        this.capaciteJournaliere = nbCamions * capaciteCamion;
+
+        this.aretes = new int[][] {
+                {1,2}, {1,25}, {2,5}, {2,3}, {3,7}, {3,4}, {4,1}, {4,9},
+                {5,13}, {5,6}, {6,2}, {6,16}, {7,18}, {7,8}, {8,3}, {8,20},
+                {9,10}, {10,4}, {10,29}, {10,28}, {13,15}, {15,5}, {16,31},
+                {16,17}, {17,6}, {17,26}, {17,18}, {31,30}, {30,16}, {26,18},
+                {18,19}, {19,7}, {29,28}, {28,24}, {24,1}, {25,24}, {20,21},
+                {21,8}
+        };
+    }
+    public void afficherGraphe() {
+        System.out.println("\n          STRUCTURE DU GRAPHE ORIENTÉ           \n");
+
+
+        for (SecteurOriente s : secteurs) {
+            System.out.println("Secteur " + s.id + " (Quantité : " + s.quantite + "T)");
+            System.out.println("  Sommets : " + s.sommets);
+            System.out.println("  Degré   : " + s.getDegre());
+
+            if (s.voisins.isEmpty()) {
+                System.out.println("  Voisins : aucun");
+            } else {
+                List<Integer> voisinsIds = new ArrayList<>();
+                for (SecteurOriente v : s.voisins) {
+                    voisinsIds.add(v.id);
+                }
+                Collections.sort(voisinsIds);
+                System.out.println("  Voisins : " + voisinsIds);
+            }
+
+            System.out.println();
+        }
+
+        // Afficher les arêtes orientées brutes
+        System.out.println("Liste des arêtes orientées : ");
+        for (int i = 0; i < aretes.length; i++) {
+            System.out.println("  A" + (i+1) + " : " + aretes[i][0] + " → " + aretes[i][1]);
+        }
+    }
+
+
+    public void construireVoisinages() {
+        System.out.println("\n  ÉTAPE 1 : CONSTRUCTION AUTOMATIQUE DES VOISINAGES          \n");
+
+        System.out.println("Parcours des 38 arêtes orientées (traitement non orienté):\n");
+
+        Set<String> voisinagesAjoutes = new HashSet<>();
+        int compteur = 0;
+
+        for (int i = 0; i < aretes.length; i++) {
+            int u = aretes[i][0];
+            int v = aretes[i][1];
+
+            SecteurOriente Su = trouverSecteurContenant(u);
+            SecteurOriente Sv = trouverSecteurContenant(v);
+
+            if (Su != null && Sv != null && Su != Sv) {
+                String cle = Math.min(Su.id, Sv.id) + "-" + Math.max(Su.id, Sv.id);
+
+                if (!voisinagesAjoutes.contains(cle)) {
+                    Su.ajouterVoisin(Sv);
+                    Sv.ajouterVoisin(Su);
+                    voisinagesAjoutes.add(cle);
+                    compteur++;
+                    System.out.printf("A%-2d (%2d→%-2d) : Secteur %d <--> Secteur %d%n",
+                            i+1, u, v, Su.id, Sv.id);
+                }
+            } else if (Su != null && Sv != null && Su == Sv) {
+                System.out.printf("A%-2d (%2d→%-2d) : arête interne (Secteur %d)%n",
+                        i+1, u, v, Su.id);
+            }
+        }
+
+        System.out.println("\n✓ " + compteur + " voisinages créés automatiquement\n");
+
+
+        System.out.println("\n  RÉSUMÉ DU GRAPHE DES SECTEURS     \n                          ");
+
+        for (SecteurOriente s : secteurs) {
+            List<Integer> voisinsIds = new ArrayList<>();
+            for (SecteurOriente v : s.voisins) {
+                voisinsIds.add(v.id);
+            }
+            Collections.sort(voisinsIds);
+            System.out.printf("Secteur %d → voisins: %-20s [degré=%d]%n",
+                    s.id, voisinsIds, s.getDegre());
+        }
+    }
+
+    private SecteurOriente trouverSecteurContenant(int sommet) {
+        for (SecteurOriente s : secteurs) {
+            if (s.contientSommet(sommet)) {
+                return s;
+            }
+        }
+        return null;
+    }
+
+    public void colorationWelshPowell() {
+        System.out.println("\n  ÉTAPE 2 : COLORATION WELSH-POWELL                           \n");
+
+        List<SecteurOriente> secteursTries = new ArrayList<>(secteurs);
+        secteursTries.sort((s1, s2) -> Integer.compare(s2.getDegre(), s1.getDegre()));
+
+        System.out.println("Tri des secteurs par degré décroissant:\n");
+        for (int i = 0; i < secteursTries.size(); i++) {
+            SecteurOriente s = secteursTries.get(i);
+            System.out.printf("%d. Secteur %d → degré = %d%n", i+1, s.id, s.getDegre());
+        }
+
+        System.out.println("\nAttribution des jours (couleurs):\n");
+
+        int jourMax = 0;
+        for (SecteurOriente s : secteursTries) {
+            Set<Integer> joursInterdits = s.getJoursVoisins();
+
+            int jour = 0;
+            while (joursInterdits.contains(jour)) {
+                jour++;
+            }
+
+            s.jour = jour;
+            System.out.printf("Secteur %d → Jour %d (jours interdits: %s)%n",
+                    s.id, jour, joursInterdits.isEmpty() ? "aucun" : joursInterdits);
+
+            if (jour > jourMax) {
+                jourMax = jour;
+            }
+        }
+
+        System.out.println("\n Coloration initiale terminée");
+        System.out.println("Nombre de jours nécessaires: " + (jourMax + 1) + "\n");
+
+        afficherChargesParJour();
+    }
+
+    public void reequilibrage() {
+        System.out.println("\n  ÉTAPE 3 : RÉÉQUILIBRAGE (HYPOTHÈSE 2)                       \n");
+        System.out.printf("Configuration: %d camions × %dt = %dt de capacité/jour%n%n",
+                nbCamions, capaciteCamion, capaciteJournaliere);
+
+        boolean modifie = true;
+        int iteration = 0;
+        int maxIterations = 100;
+
+        while (modifie && iteration < maxIterations) {
+            modifie = false;
+            iteration++;
+
+            System.out.println("  Itération " + iteration  );
+
+            Map<Integer, List<SecteurOriente>> joursSecteursMap = new HashMap<>();
+            for (SecteurOriente s : secteurs) {
+                joursSecteursMap.computeIfAbsent(s.jour, k -> new ArrayList<>()).add(s);
+            }
+
+            List<Integer> jours = new ArrayList<>(joursSecteursMap.keySet());
+            Collections.sort(jours);
+
+            System.out.println("État actuel des charges:");
+            for (int jour : jours) {
+                int charge = calculerCharge(jour);
+                String statut = charge > capaciteJournaliere ? "  SURCHARGE" : " ✓ OK";
+                System.out.printf("  Jour %d: %3dt/%dt%s%n",
+                        jour, charge, capaciteJournaliere, statut);
+            }
+            System.out.println();
+
+            for (int jour : jours) {
+                int charge = calculerCharge(jour);
+
+                if (charge > capaciteJournaliere) {
+                    System.out.printf("Détection surcharge: Jour %d (%dt > %dt)%n%n",
+                            jour, charge, capaciteJournaliere);
+
+                    List<SecteurOriente> secteursJour = new ArrayList<>(joursSecteursMap.get(jour));
+                    secteursJour.sort((s1, s2) -> Integer.compare(s2.quantite, s1.quantite));
+
+                    System.out.println("  Secteurs du jour " + jour + " (triés par quantité décroissante):");
+                    for (SecteurOriente s : secteursJour) {
+                        System.out.printf("    - Secteur %d: %dt%n", s.id, s.quantite);
+                    }
+                    System.out.println();
+
+                    for (SecteurOriente s : secteursJour) {
+                        if (calculerCharge(jour) <= capaciteJournaliere) {
+                            System.out.println("   Jour " + jour + " équilibré\n");
+                            break;
+                        }
+
+                        int jourOptimal = trouverJourOptimal(s);
+                        if (jourOptimal != -1 && jourOptimal != s.jour) {
+                            int chargeAvant = calculerCharge(jourOptimal);
+                            System.out.printf("  → Déplacement: Secteur %d (%dt)%n", s.id, s.quantite);
+                            System.out.printf("    De: Jour %d → Vers: Jour %d%n", s.jour, jourOptimal);
+                            System.out.printf("    Charge destination: %dt → %dt%n%n",
+                                    chargeAvant, chargeAvant + s.quantite);
+                            s.jour = jourOptimal;
+                            modifie = true;
+                        } else {
+                            System.out.printf("   Impossible de déplacer Secteur %d%n%n", s.id);
+                        }
+                    }
+                }
+            }
+
+            if (!modifie) {
+                System.out.println(" Équilibre atteint: aucune modification nécessaire\n");
+            }
+        }
+
+        if (iteration >= maxIterations) {
+            System.out.println(" Arrêt après " + maxIterations + " itérations (sécurité)\n");
+        }
+    }
+
+    private int calculerCharge(int jour) {
+        int charge = 0;
+        for (SecteurOriente s : secteurs) {
+            if (s.jour == jour) {
+                charge += s.quantite;
+            }
+        }
+        return charge;
+    }
+
+    private int trouverJourOptimal(SecteurOriente secteur) {
+        Set<Integer> joursInterdits = secteur.getJoursVoisins();
+
+        Map<Integer, Integer> chargesJours = new HashMap<>();
+        for (SecteurOriente s : secteurs) {
+            if (s != secteur) {
+                chargesJours.put(s.jour, chargesJours.getOrDefault(s.jour, 0) + s.quantite);
+            }
+        }
+
+        int jourOptimal = -1;
+        int chargeMin = Integer.MAX_VALUE;
+
+        for (Map.Entry<Integer, Integer> entry : chargesJours.entrySet()) {
+            int jour = entry.getKey();
+            int charge = entry.getValue();
+
+            if (!joursInterdits.contains(jour) &&
+                    charge + secteur.quantite <= capaciteJournaliere &&
+                    charge < chargeMin) {
+                chargeMin = charge;
+                jourOptimal = jour;
+            }
+        }
+
+        if (jourOptimal == -1) {
+            int maxJour = secteurs.stream().mapToInt(s -> s.jour).max().orElse(-1);
+            for (int j = 0; j <= maxJour + 1; j++) {
+                if (!joursInterdits.contains(j) && !chargesJours.containsKey(j)) {
+                    jourOptimal = j;
+                    break;
+                }
+            }
+        }
+
+        return jourOptimal;
+    }
+
+    private void afficherChargesParJour() {
+        Map<Integer, Integer> chargesJours = new HashMap<>();
+        for (SecteurOriente s : secteurs) {
+            chargesJours.put(s.jour, chargesJours.getOrDefault(s.jour, 0) + s.quantite);
+        }
+
+        List<Integer> jours = new ArrayList<>(chargesJours.keySet());
+        Collections.sort(jours);
+
+        System.out.println("Charges par jour après coloration:\n");
+        for (int jour : jours) {
+            int charge = chargesJours.get(jour);
+            double taux = (charge * 100.0) / capaciteJournaliere;
+            String statut = charge > capaciteJournaliere ? " ⚠ SURCHARGE" : "";
+            System.out.printf("  Jour %d: %3dt/%dt (%.1f%%)%s%n",
+                    jour, charge, capaciteJournaliere, taux, statut);
+        }
+    }
+
+    public void afficherPlanningFinal() {
+        System.out.println("\n  ÉTAPE 4 : PLANNING FINAL DE COLLECTE                        \n");
+
+        Map<Integer, List<SecteurOriente>> planning = new HashMap<>();
+        for (SecteurOriente s : secteurs) {
+            planning.computeIfAbsent(s.jour, k -> new ArrayList<>()).add(s);
+        }
+
+        List<Integer> jours = new ArrayList<>(planning.keySet());
+        Collections.sort(jours);
+
+        for (int jour : jours) {
+            List<SecteurOriente> secteursJour = planning.get(jour);
+            int charge = calculerCharge(jour);
+            double taux = (charge * 100.0) / capaciteJournaliere;
+
+
+            System.out.printf(" JOUR %d                                                       %n", jour);
+            System.out.printf(" Charge: %dt/%dt (%.1f%%)                                 %n",
+                    charge, capaciteJournaliere, taux);
+
+
+            for (SecteurOriente s : secteursJour) {
+                System.out.printf("  • Secteur %d: %dt%n", s.id, s.quantite);
+                System.out.printf("    Sommets: %s%n", s.sommets);
+            }
+            System.out.println();
+        }
+
+
+        System.out.println(" Nombre total de jours: " + jours.size());
+    }
+
+    public void verificationFinale() {
+        System.out.println("\n  VÉRIFICATION FINALE                                         \n");
+
+        boolean planningValide = true;
+
+        System.out.println("  Vérification des contraintes de voisinage\n");
+
+        int nbConflits = 0;
+        for (SecteurOriente s : secteurs) {
+            for (SecteurOriente v : s.voisins) {
+                if (s.id < v.id && s.jour == v.jour) {
+                    System.out.printf("   CONFLIT: Secteur %d et Secteur %d (tous deux au jour %d)%n",
+                            s.id, v.id, s.jour);
+                    nbConflits++;
+                    planningValide = false;
+                }
+            }
+        }
+
+        if (nbConflits == 0) {
+            System.out.println("   Aucun conflit de voisinage détecté");
+            System.out.println("  Tous les secteurs voisins sont à des jours différents\n");
+        } else {
+            System.out.println("\n   Nombre total de conflits: " + nbConflits + "\n");
+        }
+
+        System.out.println("  Vérification des capacités journalières\n");
+
+        Map<Integer, Integer> chargesJours = new HashMap<>();
+        for (SecteurOriente s : secteurs) {
+            chargesJours.put(s.jour, chargesJours.getOrDefault(s.jour, 0) + s.quantite);
+        }
+
+        boolean surcharge = false;
+        List<Integer> jours = new ArrayList<>(chargesJours.keySet());
+        Collections.sort(jours);
+
+        for (int jour : jours) {
+            int charge = chargesJours.get(jour);
+            if (charge > capaciteJournaliere) {
+                System.out.printf("   SURCHARGE: Jour %d = %dt (dépasse de %dt)%n",
+                        jour, charge, charge - capaciteJournaliere);
+                surcharge = true;
+                planningValide = false;
+            } else {
+                System.out.printf("   Jour %d: %dt/%dt%n",
+                        jour, charge, capaciteJournaliere);
+            }
+        }
+
+        if (!surcharge) {
+            System.out.println("\n   Toutes les capacités sont respectées\n");
+        } else {
+            System.out.println();
+        }
+
+        System.out.println("  Récapitulatif du planning\n");
+
+        for (int jour : jours) {
+            List<String> secteursList = new ArrayList<>();
+            for (SecteurOriente s : secteurs) {
+                if (s.jour == jour) {
+                    secteursList.add("S" + s.id);
+                }
+            }
+            System.out.printf("  Jour %d: %s%n", jour, String.join(", ", secteursList));
+        }
+
+        System.out.println("\n  Statistiques globales\n");
+
+        int chargeTotal = secteurs.stream().mapToInt(s -> s.quantite).sum();
+        double moyenneCharge = chargeTotal / (double) jours.size();
+
+        System.out.println("  • Nombre de jours utilisés: " + jours.size());
+        System.out.println("  • Charge totale: " + chargeTotal + "t");
+        System.out.printf("  • Charge moyenne par jour: %.2ft%n", moyenneCharge);
+        System.out.println("  • Capacité journalière: " + capaciteJournaliere + "t");
+        System.out.println("  • Nombre de camions: " + nbCamions);
+        System.out.println("  • Capacité par camion: " + capaciteCamion + "t");
+
+        if (planningValide) {
+            System.out.println("           PLANNING VALIDE ET OPTIMISÉ");
+        } else {
+            System.out.println("           PLANNING INVALIDE");
+        }
+    }
+}
+
+import java.util.*;
+public class ScenarioOriente {
+    public static void executer() {
+
+        List<SecteurOriente> secteurs = Arrays.asList(
+                new SecteurOriente(1, 22, 1, 2, 3, 4),
+                new SecteurOriente(2, 18, 5, 6, 13, 15),
+                new SecteurOriente(3, 20, 7, 8, 18, 19),
+                new SecteurOriente(4, 12, 9, 10),
+                new SecteurOriente(5, 24, 24, 25, 28, 29),
+                new SecteurOriente(6, 18, 20, 21, 26),
+                new SecteurOriente(7, 20, 16, 17, 30, 31)
+        );
+
+        PlanificateurOriente p = new PlanificateurOriente(secteurs, 2, 25);
+
+        p.construireVoisinages();
+        p.afficherGraphe();
+        p.colorationWelshPowell();
+        p.reequilibrage();
+        p.afficherPlanningFinal();
+        p.verificationFinale();
+    }
+}
+import java.util.*;
+
+public class SecteurMixte {
+    private int numero;
+    private List<Integer> sommets;
+    private int quantite;
+    private Set<SecteurMixte> voisins;
+    private int jour;
+
+    public SecteurMixte(int numero, int quantite, int... sommetsArray) {
+        this.numero = numero;
+        this.quantite = quantite;
+        this.sommets = new ArrayList<>();
+        for (int s : sommetsArray) {
+            this.sommets.add(s);
+        }
+        this.voisins = new HashSet<>();
+        this.jour = -1;
+    }
+
+    public void ajouterVoisin(SecteurMixte voisin) {
+        this.voisins.add(voisin);
+    }
+
+    public boolean containsSommet(int sommet) {
+        return sommets.contains(sommet);
+    }
+
+    public Set<Integer> getJoursVoisins() {
+        Set<Integer> joursVoisins = new HashSet<>();
+        for (SecteurMixte v : voisins) {
+            if (v.getJour() != -1) {
+                joursVoisins.add(v.getJour());
+            }
+        }
+        return joursVoisins;
+    }
+
+    public int getDegre() {
+        return voisins.size();
+    }
+
+    public int getNumero() {
+        return numero;
+    }
+
+    public List<Integer> getSommets() {
+        return sommets;
+    }
+
+    public int getQuantite() {
+        return quantite;
+    }
+
+    public Set<SecteurMixte> getVoisins() {
+        return voisins;
+    }
+
+    public int getJour() {
+        return jour;
+    }
+
+    public void setJour(int jour) {
+        this.jour = jour;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SecteurMixte secteur = (SecteurMixte) o;
+        return numero == secteur.numero;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(numero);
+    }
+
+    @Override
+    public String toString() {
+        return "Secteur " + numero;
+    }
+}
+import java.util.*;
+
+public class PlanificateurMixte {
+    private List<SecteurMixte> secteurs;
+    private int nbCamions;
+    private int capaciteCamion;
+    private int capaciteJournaliere;
+
+    public PlanificateurMixte(List<SecteurMixte> secteurs, int nbCamions, int capaciteCamion) {
+        this.secteurs = secteurs;
+        this.nbCamions = nbCamions;
+        this.capaciteCamion = capaciteCamion;
+        this.capaciteJournaliere = nbCamions * capaciteCamion;
+    }
+
+    public void ajouterSecteur(SecteurMixte secteur) {
+        secteurs.add(secteur);
+    }
+
+    /**
+     * Construit automatiquement les voisinages à partir des arêtes
+     */
+    public void construireVoisinages(List<String> aretes) {
+        System.out.println("\n   CONSTRUCTION DES VOISINAGES                  \n");
+
+        Set<String> voisinagesAjoutes = new HashSet<>();
+
+        for (String arete : aretes) {
+            // Parser l'arête (orientée ou non)
+            int sommet1, sommet2;
+            if (arete.contains("->")) {
+                String[] parts = arete.split("->");
+                sommet1 = Integer.parseInt(parts[0]);
+                sommet2 = Integer.parseInt(parts[1]);
+            } else {
+                String[] parts = arete.split("-");
+                sommet1 = Integer.parseInt(parts[0]);
+                sommet2 = Integer.parseInt(parts[1]);
+            }
+
+            // Trouver les secteurs contenant ces sommets
+            SecteurMixte secteur1 = null;
+            SecteurMixte secteur2 = null;
+
+            for (SecteurMixte s : secteurs) {
+                if (s.containsSommet(sommet1)) secteur1 = s;
+                if (s.containsSommet(sommet2)) secteur2 = s;
+            }
+
+            // Ajouter voisinage si secteurs différents
+            if (secteur1 != null && secteur2 != null && !secteur1.equals(secteur2)) {
+                String cle1 = secteur1.getNumero() + "-" + secteur2.getNumero();
+                String cle2 = secteur2.getNumero() + "-" + secteur1.getNumero();
+
+                if (!voisinagesAjoutes.contains(cle1) && !voisinagesAjoutes.contains(cle2)) {
+                    secteur1.ajouterVoisin(secteur2);
+                    secteur2.ajouterVoisin(secteur1);
+                    voisinagesAjoutes.add(cle1);
+                    System.out.println("→ Voisinage ajouté : " + secteur1 + " ↔ " + secteur2 +
+                            " (arête " + arete + ")");
+                }
+            }
+        }
+    }
+
+    /**
+     * Coloration initiale avec Welsh-Powell
+     */
+    public void coloration() {
+        System.out.println("\n   ÉTAPE 1 : COLORATION WELSH-POWELL           \n");
+
+        // Trier par degré décroissant
+        List<SecteurMixte> secteursOrdonnés = new ArrayList<>(secteurs);
+        secteursOrdonnés.sort((s1, s2) -> {
+            int cmp = Integer.compare(s2.getDegre(), s1.getDegre());
+            if (cmp == 0) {
+                return Integer.compare(s1.getNumero(), s2.getNumero());
+            }
+            return cmp;
+        });
+
+        System.out.println("Ordre de traitement (degré décroissant) :");
+        for (SecteurMixte s : secteursOrdonnés) {
+            System.out.println("  " + s + " : degré = " + s.getDegre() +
+                    ", quantité = " + s.getQuantite() + "T");
+        }
+
+        System.out.println("\nAttribution des jours :");
+
+        // Coloration
+        for (SecteurMixte secteur : secteursOrdonnés) {
+            Set<Integer> joursVoisins = secteur.getJoursVoisins();
+
+            // Trouver le premier jour disponible
+            int jour = 1;
+            while (joursVoisins.contains(jour)) {
+                jour++;
+            }
+
+            secteur.setJour(jour);
+            System.out.println("  " + secteur + " → Jour " + jour +
+                    " (voisins aux jours : " + joursVoisins + ")");
+        }
+    }
+
+    /**
+     * Hypothèse 2 : Rééquilibrage avec contrainte de capacité
+     */
+    public void equilibrageHypothese2() {
+        System.out.println("\n   ÉTAPE 2 : ÉQUILIBRAGE CAPACITÉ               ");
+        System.out.println("\nCapacité journalière : " + nbCamions + " camions × " +
+                capaciteCamion + "T = " + capaciteJournaliere + "T\n");
+
+        boolean modifie = true;
+        int iteration = 0;
+
+        while (modifie) {
+            modifie = false;
+            iteration++;
+
+            Map<Integer, List<SecteurMixte>> planning = getPlanning();
+            Map<Integer, Integer> charges = getCharges();
+
+            System.out.println("--- Itération " + iteration + " ---");
+
+            // Chercher les jours en surcharge
+            for (Map.Entry<Integer, Integer> entry : charges.entrySet()) {
+                int jour = entry.getKey();
+                int charge = entry.getValue();
+
+                if (charge > capaciteJournaliere) {
+                    System.out.println(" Jour " + jour + " : " + charge + "T > " +
+                            capaciteJournaliere + "T (SURCHARGE)");
+
+                    // Trier les secteurs de ce jour par quantité décroissante
+                    List<SecteurMixte> secteursJour = new ArrayList<>(planning.get(jour));
+                    secteursJour.sort((s1, s2) -> Integer.compare(s2.getQuantite(), s1.getQuantite()));
+
+                    // Essayer de déplacer le plus lourd
+                    for (SecteurMixte secteur : secteursJour) {
+                        Set<Integer> joursVoisins = secteur.getJoursVoisins();
+
+                        // Chercher un jour compatible
+                        int maxJour = Collections.max(charges.keySet());
+                        boolean deplace = false;
+
+                        for (int nouveauJour = 1; nouveauJour <= maxJour + 1; nouveauJour++) {
+                            if (nouveauJour == jour) continue;
+                            if (joursVoisins.contains(nouveauJour)) continue;
+
+                            int chargeNouveauJour = charges.getOrDefault(nouveauJour, 0);
+                            if (chargeNouveauJour + secteur.getQuantite() <= capaciteJournaliere) {
+                                System.out.println("  → Déplacement de " + secteur + " (quantité " +
+                                        secteur.getQuantite() + "T) : Jour " + jour +
+                                        " → Jour " + nouveauJour);
+                                secteur.setJour(nouveauJour);
+                                modifie = true;
+                                deplace = true;
+                                break;
+                            }
+                        }
+
+                        if (deplace) break;
+                    }
+                }
+            }
+
+            if (!modifie) {
+                System.out.println(" Équilibrage terminé : aucune surcharge restante");
+            }
+        }
+    }
+
+    /**
+     * Retourne le planning (secteurs par jour)
+     */
+    public Map<Integer, List<SecteurMixte>> getPlanning() {
+        Map<Integer, List<SecteurMixte>> planning = new TreeMap<>();
+        for (SecteurMixte s : secteurs) {
+            int jour = s.getJour();
+            planning.putIfAbsent(jour, new ArrayList<>());
+            planning.get(jour).add(s);
+        }
+        return planning;
+    }
+
+    /**
+     * Retourne les charges par jour
+     */
+    public Map<Integer, Integer> getCharges() {
+        Map<Integer, Integer> charges = new TreeMap<>();
+        for (SecteurMixte s : secteurs) {
+            int jour = s.getJour();
+            charges.put(jour, charges.getOrDefault(jour, 0) + s.getQuantite());
+        }
+        return charges;
+    }
+
+    /**
+     * Affiche la structure du graphe
+     */
+    public void afficherGraphe() {
+        System.out.println("\n          STRUCTURE DU GRAPHE                   \n");
+
+        for (SecteurMixte s : secteurs) {
+            System.out.println(s + " (Quantité: " + s.getQuantite() + "T)");
+            System.out.println("  Sommets : " + s.getSommets());
+            System.out.println("  Degré   : " + s.getDegre());
+
+            if (s.getVoisins().isEmpty()) {
+                System.out.println("  Voisins : aucun");
+            } else {
+                List<Integer> voisinsNum = new ArrayList<>();
+                for (SecteurMixte v : s.getVoisins()) {
+                    voisinsNum.add(v.getNumero());
+                }
+                Collections.sort(voisinsNum);
+                System.out.println("  Voisins : " + voisinsNum);
+            }
+            System.out.println();
+        }
+    }
+
+    /**
+     * Affiche le résultat final
+     */
+    public void afficherResultat() {
+        System.out.println("\n       RÉSULTAT FINAL - HYPOTHÈSE 2             \n");
+
+        Map<Integer, List<SecteurMixte>> planning = getPlanning();
+        Map<Integer, Integer> charges = getCharges();
+
+        System.out.println("┌────────┬─────────────────┬──────────────┬──────────────────────────┐");
+        System.out.println("│  JOUR  │    SECTEURS     │  CHARGE (T)  │       SOMMETS            │");
+        System.out.println("├────────┼─────────────────┼──────────────┼──────────────────────────┤");
+
+        for (Map.Entry<Integer, List<SecteurMixte>> entry : planning.entrySet()) {
+            int jour = entry.getKey();
+            List<SecteurMixte> secteursJour = entry.getValue();
+            int charge = charges.get(jour);
+
+            secteursJour.sort(Comparator.comparingInt(SecteurMixte::getNumero));
+
+            List<String> numSecteurs = new ArrayList<>();
+            List<String> sommets = new ArrayList<>();
+
+            for (SecteurMixte s : secteursJour) {
+                numSecteurs.add(String.valueOf(s.getNumero()));
+                for (int sommet : s.getSommets()) {
+                    sommets.add(String.valueOf(sommet));
+                }
+            }
+
+            String secteurStr = String.join(", ", numSecteurs);
+            String sommetStr = String.join(", ", sommets);
+
+            String indicator = (charge <= capaciteJournaliere) ? "" : " ⚠";
+
+            System.out.printf("│ Jour %-1d │ %-15s │ %3d/%-3d%s     │ %-24s │%n",
+                    jour, secteurStr, charge, capaciteJournaliere, indicator,
+                    sommetStr.length() > 24 ? sommetStr.substring(0, 21) + "..." : sommetStr);
+        }
+
+        System.out.println("└────────┴─────────────────┴──────────────┴──────────────────────────┘");
+        System.out.println("\n Nombre total de jours : " + planning.size());
+    }
+
+    /**
+     * Vérifie la validité de la solution
+     */
+    public boolean verifierSolution() {
+        System.out.println("\n      VÉRIFICATION DE LA SOLUTION               \n");
+
+        boolean valide = true;
+
+        // Vérification 1 : Conflits de voisinage
+        System.out.println("1. Vérification des conflits de voisinage :");
+        boolean conflitVoisinage = false;
+        for (SecteurMixte s : secteurs) {
+            for (SecteurMixte voisin : s.getVoisins()) {
+                if (s.getJour() == voisin.getJour()) {
+                    System.out.println("    ERREUR : " + s + " et " + voisin +
+                            " sont voisins et ont le même jour (" + s.getJour() + ")");
+                    conflitVoisinage = true;
+                    valide = false;
+                }
+            }
+        }
+        if (!conflitVoisinage) {
+            System.out.println("    Aucun conflit de voisinage");
+        }
+
+        // Vérification 2 : Capacité journalière
+        System.out.println("\n2. Vérification de la capacité journalière :");
+        Map<Integer, Integer> charges = getCharges();
+        boolean surcharge = false;
+        for (Map.Entry<Integer, Integer> entry : charges.entrySet()) {
+            int jour = entry.getKey();
+            int charge = entry.getValue();
+            String status = (charge <= capaciteJournaliere) ? "valide " : "invalide";
+            System.out.println("   " + status + " Jour " + jour + " : " + charge + "T / " +
+                    capaciteJournaliere + "T");
+            if (charge > capaciteJournaliere) {
+                surcharge = true;
+                valide = false;
+            }
+        }
+
+        // Résumé
+        System.out.println("\n" + "═".repeat(50));
+        if (valide) {
+            System.out.println(" SOLUTION VALIDE ");
+            System.out.println("   Pas de conflit de voisinage");
+            System.out.println("   Toutes les capacités respectées");
+        } else {
+            System.out.println("SOLUTION INVALIDE ");
+        }
+        System.out.println("═".repeat(50));
+
+        return valide;
+    }
+}import java.util.*;
+
+public class ScenarioMixte {
+
+    public static void executer() {
+        System.out.println("\n                  GRAPHE MIXTE — EXECUTION             ║");
+
+        // === DÉFINITION DES SECTEURS ===
+        List<SecteurMixte> secteurs = Arrays.asList(
+                new SecteurMixte(1, 20, 1, 2, 3),
+                new SecteurMixte(2, 18, 4, 5, 6),
+                new SecteurMixte(3, 22, 7, 8),
+                new SecteurMixte(4, 14, 9, 10),
+                new SecteurMixte(5, 16, 11, 12),
+                new SecteurMixte(6, 12, 13, 14),
+                new SecteurMixte(7, 26, 15, 16)
+        );
+
+        // === LISTE COMPLÈTE DES ARÊTES MIXTES (orientées + non orientées) ===
+        List<String> aretes = Arrays.asList(
+                "1-2", "1->3", "2-3", "3-4", "3->7", "4-34", "5->6", "4-5",
+                "6->26", "6->14", "7-8", "8->6", "9->7", "10-1", "10->14",
+                "10->11", "10->20", "11-12", "12-15", "13-2", "13-14",
+                "14->15", "14->11", "14->1", "15-28", "16->9", "16->18",
+                "16-17", "17-19", "18->19", "19->20", "20->21", "21-18",
+                "18->22", "22-24", "22-23", "24->23", "24-9", "25->7",
+                "25-26", "26-27", "27->5", "28-15", "28->12", "29->20",
+                "11->29", "30->13", "30-4", "30->32", "31->30", "31-33",
+                "33->4", "34->35", "35-27"
+        );
+
+        // === CRÉATION DU PLANIFICATEUR ===
+        PlanificateurMixte p = new PlanificateurMixte(secteurs, 2, 25);
+
+        // === EXÉCUTION DES ÉTAPES ===
+        p.construireVoisinages(aretes);
+        p.coloration();
+        p.equilibrageHypothese2();
+        p.afficherGraphe();
+        p.afficherResultat();
+        p.verifierSolution();
+    }
+}
+//TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
+// click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
+import java.util.*;
+public class Main {
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        boolean continuer = true;
+
+        while (continuer) {
+            afficherMenu();
+            System.out.print("Votre choix : ");
+
+            int choix = -1;
+            try {
+                choix = scanner.nextInt();
+            } catch (Exception e) {
+                scanner.nextLine(); // vide le buffer
+                System.out.println("\nEntree invalide. Veuillez entrer un nombre.\n");
+                continue;
+            }
+
+            System.out.println();
+
+            switch (choix) {
+
+                case 1:
+                    System.out.println("\n     EXÉCUTION : GRAPHE NON ORIENTÉ\n");
+                    ScenarioNonOriente.executer();
+                    pauseAvantRetour(scanner);
+                    break;
+
+                case 2:
+                    System.out.println(" \n    EXECUTION : GRAPHE ORIENTE\n");
+                    ScenarioOriente.executer();
+                    pauseAvantRetour(scanner);
+                    break;
+
+                case 3:
+                    System.out.println("\n     EXECUTION : GRAPHE MIXTE\n");
+                    ScenarioMixte.executer();
+                    pauseAvantRetour(scanner);
+                    break;
+
+                case 0:
+                    System.out.println("\n    MERCI D'AVOIR UTILISE LE PROGRAMME DE COLLECTE    \n");
+                    continuer = false;
+                    break;
+
+                default:
+                    System.out.println(" Choix invalide. Veuillez choisir entre 0 et 3.\n");
+            }
+        }
+
+        scanner.close();
+    }
+
+    private static void afficherMenu() {
+        System.out.println("\n  PLANIFICATION COLLECTE - THEME 3 HYPOTHESE 2       ");
+        System.out.println("              MENU DE SELECTION                        \n");
+        System.out.println();
+        System.out.println("  1 - Exécuter Graphe NON ORIENTE");
+        System.out.println("  2 - Exécuter Graphe ORIENTE");
+        System.out.println("  3 - Exécuter Graphe MIXTE");
+        System.out.println("  0 - Quitter");
+    }
+
+    private static void pauseAvantRetour(Scanner scanner) {
+        System.out.println("\n[Appuyez sur Entree pour revenir au menu...]");
+        scanner.nextLine(); // vider buffer
+        try {
+            scanner.nextLine(); // attendre entrée
+        } catch (Exception e) {}
+    }
+}
+
+
+
